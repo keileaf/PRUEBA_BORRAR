@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Logístico - Simulación Interactiva</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        .card {
+            background-color: #2d2d2d;
+            border: 1px solid #444;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #3d3d3d;
+            border-bottom: 1px solid #444;
+            color: white;
+        }
+        .form-label, .form-range, .btn, .legend h5, .info-panel h5, .info-panel p, 
+        #rValue, #iterationsValue, #speedValue, h1, h2, h3, h4, h5, h6 {
+            color: white !important;
+        }
+        .form-range::-webkit-slider-thumb {
+            background-color: #0d6efd;
+        }
+        .form-range::-moz-range-thumb {
+            background-color: #0d6efd;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+            color: white;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            border-radius: 3px;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 20px;
+            background-color: #2d2d2d;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .info-panel {
+            background-color: #2d2d2d;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .alert-info {
+            background-color: #2d2d2d;
+            border-color: #444;
+            color: white;
+        }
+        .critical-value {
+            background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        .phase-transition {
+            background-color: #3d3d3d;
+            padding: 15px;
+            border-left: 4px solid #0dcaf0;
+            margin: 15px 0;
+            border-radius: 0 5px 5px 0;
+        }
+        .bifurcation-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+        }
+        #bifurcationCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #bifurcationOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <header class="pb-3 mb-4 border-bottom border-secondary">
+            <h1 class="display-5 fw-bold">Mapa Logístico: Simulación Interactiva</h1>
+            <p class="lead">xₙ₊₁ = r · xₙ · (1 - xₙ)</p>
+        </header>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="critical-value">
+                    <h4>Punto de Inicio del Caos: r ≈ 3.56995</h4>
+                    <p>Este valor crítico (punto de Feigenbaum) marca el inicio del régimen caótico</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">Controles</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="rSlider" class="form-label">Parámetro r (tasa de crecimiento): <span id="rValue">3.0</span></label>
+                            <input type="range" class="form-range" id="rSlider" min="2.5" max="4.0" step="0.001" value="3.0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="iterationsSlider" class="form-label">Iteraciones visibles: <span id="iterationsValue">500</span></label>
+                            <input type="range" class="form-range" id="iterationsSlider" min="100" max="1000" step="100" value="500">
+                        </div>
+                        <div class="mb-3">
+                            <label for="speedSlider" class="form-label">Velocidad de animación: <span id="speedValue">1.0</span></label>
+                            <input type="range" class="form-range" id="speedSlider" min="0.1" max="5.0" step="0.1" value="1.0">
+                        </div>
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button id="resetBtn" class="btn btn-primary me-md-2">Reiniciar</button>
+                            <button id="pauseBtn" class="btn btn-secondary">Pausar/Reanudar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-panel">
+                    <h5>Información del Sistema</h5>
+                    <p>Parámetro r: <span id="currentR">3.0</span></p>
+                    <p>Valor actual x: <span id="currentX">0.5</span></p>
+                    <p>Iteraciones: <span id="iterationCount">0</span></p>
+                    <p>Comportamiento: <span id="behavior">Punto fijo estable</span></p>
+                </div>
+
+                <div class="phase-transition">
+                    <h5>Fases del Mapa Logístico</h5>
+                    <ul>
+                        <li><strong>r < 3.0</strong>: Comportamiento estable</li>
+                        <li><strong>3.0 ≤ r < 3.44949</strong>: Bifurcación a período 2</li>
+                        <li><strong>3.44949 ≤ r < 3.54409</strong>: Período 4</li>
+                        <li><strong>3.54409 ≤ r < 3.56441</strong>: Período 8</li>
+                        <li><strong>3.56441 ≤ r < 3.56875</strong>: Período 16</li>
+                        <li><strong>3.56875 ≤ r < 3.56969</strong>: Período 32</li>
+                        <li><strong>r ≥ 3.56995</strong>: <span style="color: #ff6b6b;">Régimen caótico</span></li>
+                    </ul>
+                </div>
+
+                <div class="legend">
+                    <h5>Leyenda</h5>
+                    <div class="d-flex flex-wrap">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: rgba(0, 200, 255, 1);"></div>
+                            <span>Evolución temporal</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: rgba(100, 255, 100, 1);"></div>
+                            <span>Función logística</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: rgba(255, 100, 100, 0.7);"></div>
+                            <span>Línea de referencia (y=x)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: rgba(255, 255, 0, 1);"></div>
+                            <span>Órbita actual</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: rgba(255, 0, 0, 1);"></div>
+                            <span>Valor actual de r</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="canvas-container">
+                    <h4>Evolución Temporal</h4>
+                    <canvas id="timeSeriesChart"></canvas>
+                </div>
+
+                <div class="canvas-container">
+                    <h4>Diagrama de Fases</h4>
+                    <canvas id="phaseDiagramChart"></canvas>
+                </div>
+
+                <div class="canvas-container">
+                    <h4>Diagrama de Bifurcación</h4>
+                    <div class="bifurcation-container">
+                        <canvas id="bifurcationCanvas"></canvas>
+                        <canvas id="bifurcationOverlay"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <small>Presiona ESPACIO para pausar/reanudar, R para reiniciar. El caos comienza en r ≈ 3.56995</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variables de la simulación
+        let r = 3.0;
+        let x = 0.5;
+        let maxIterations = 500;
+        let historySize = 1000;
+        let xHistory = new Array(historySize).fill(x);
+        let historyIndex = 0;
+        let paused = false;
+        let animationSpeed = 1.0;
+        let animationId = null;
+        let bifurcationData = [];
+
+        // Elementos del DOM
+        const rSlider = document.getElementById('rSlider');
+        const rValue = document.getElementById('rValue');
+        const iterationsSlider = document.getElementById('iterationsSlider');
+        const iterationsValue = document.getElementById('iterationsValue');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const resetBtn = document.getElementById('resetBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const currentR = document.getElementById('currentR');
+        const currentX = document.getElementById('currentX');
+        const iterationCount = document.getElementById('iterationCount');
+        const behavior = document.getElementById('behavior');
+
+        // Configuración de gráficos
+        const timeSeriesCtx = document.getElementById('timeSeriesChart').getContext('2d');
+        const phaseDiagramCtx = document.getElementById('phaseDiagramChart').getContext('2d');
+        const bifurcationCanvas = document.getElementById('bifurcationCanvas');
+        const bifurcationOverlay = document.getElementById('bifurcationOverlay');
+
+        let timeSeriesChart, phaseDiagramChart;
+
+        // Inicializar gráficos
+        function initCharts() {
+            // Gráfico de serie temporal
+            timeSeriesChart = new Chart(timeSeriesCtx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: maxIterations}, (_, i) => i),
+                    datasets: [{
+                        label: 'Evolución de x',
+                        data: [],
+                        borderColor: 'rgba(0, 200, 255, 1)',
+                        backgroundColor: 'rgba(0, 200, 255, 0.1)',
+                        borderWidth: 1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Iteración',
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(100, 100, 100, 0.2)'
+                            },
+                            ticks: {
+                                color: 'white'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Valor de x',
+                                color: 'white'
+                            },
+                            min: 0,
+                            max: 1,
+                            grid: {
+                                color: 'rgba(100, 100, 100, 0.2)'
+                            },
+                            ticks: {
+                                color: 'white'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // Gráfico de diagrama de fases
+            phaseDiagramChart = new Chart(phaseDiagramCtx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Función logística',
+                            data: [],
+                            borderColor: 'rgba(100, 255, 100, 1)',
+                            backgroundColor: 'rgba(100, 255, 100, 0.1)',
+                            borderWidth: 1,
+                            showLine: true,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Línea de referencia',
+                            data: [{x: 0, y: 0}, {x: 1, y: 1}],
+                            borderColor: 'rgba(255, 100, 100, 0.7)',
+                            backgroundColor: 'rgba(255, 100, 100, 0.1)',
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            showLine: true
+                        },
+                        {
+                            label: 'Órbita actual',
+                            data: [],
+                            borderColor: 'rgba(255, 255, 0, 1)',
+                            backgroundColor: 'rgba(255, 255, 0, 0.3)',
+                            borderWidth: 1,
+                            pointRadius: 3,
+                            showLine: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    animation: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'xₙ',
+                                color: 'white'
+                            },
+                            min: 0,
+                            max: 1,
+                            grid: {
+                                color: 'rgba(100, 100, 100, 0.2)'
+                            },
+                            ticks: {
+                                color: 'white'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'xₙ₊₁',
+                                color: 'white'
+                            },
+                            min: 0,
+                            max: 1,
+                            grid: {
+                                color: 'rgba(100, 100, 100, 0.2)'
+                            },
+                            ticks: {
+                                color: 'white'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Inicializar diagrama de bifurcación
+            initBifurcationDiagram();
+            
+            // Actualizar datos iniciales
+            updateBifurcationDiagram();
+            updatePhaseDiagramCurve();
+        }
+
+        // Inicializar diagrama de bifurcación con canvas nativo
+        function initBifurcationDiagram() {
+            // Asegurar que ambos canvas tengan el mismo tamaño
+            const width = bifurcationCanvas.offsetWidth;
+            const height = 400;
+            
+            bifurcationCanvas.width = width;
+            bifurcationCanvas.height = height;
+            bifurcationOverlay.width = width;
+            bifurcationOverlay.height = height;
+        }
+
+        // Dibujar diagrama de bifurcación con canvas nativo
+        function drawBifurcationDiagram() {
+            const ctx = bifurcationCanvas.getContext('2d');
+            const width = bifurcationCanvas.width;
+            const height = bifurcationCanvas.height;
+            
+            // Limpiar canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Dibujar fondo
+            ctx.fillStyle = '#2d2d2d';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Dibujar puntos de bifurcación
+            ctx.fillStyle = 'rgba(200, 150, 0, 0.7)';
+            
+            for (const point of bifurcationData) {
+                const xPos = ((point.x - 2.5) / (4.0 - 2.5)) * width;
+                const yPos = height - (point.y * height);
+                
+                ctx.fillRect(xPos, yPos, 1, 1);
+            }
+            
+            // Dibujar ejes
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 1;
+            
+            // Eje Y
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+            ctx.lineTo(0, 0);
+            ctx.stroke();
+            
+            // Eje X
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+            ctx.lineTo(width, height);
+            ctx.stroke();
+            
+            // Etiquetas de ejes
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            
+            // Etiquetas eje X
+            for (let rVal = 2.5; rVal <= 4.0; rVal += 0.5) {
+                const xPos = ((rVal - 2.5) / (4.0 - 2.5)) * width;
+                ctx.fillText(rVal.toFixed(1), xPos, height - 5);
+            }
+            
+            ctx.textAlign = 'right';
+            // Etiquetas eje Y
+            for (let yVal = 0; yVal <= 1.0; yVal += 0.2) {
+                const yPos = height - (yVal * height);
+                ctx.fillText(yVal.toFixed(1), -5, yPos + 4);
+            }
+            
+            // Títulos de ejes
+            ctx.textAlign = 'center';
+            ctx.fillText('Parámetro r', width / 2, height - 20);
+            
+            ctx.save();
+            ctx.translate(-20, height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Valor de x', 0, 0);
+            ctx.restore();
+        }
+
+        // Dibujar línea roja en el overlay
+        function drawRedLine() {
+            const ctx = bifurcationOverlay.getContext('2d');
+            const width = bifurcationOverlay.width;
+            const height = bifurcationOverlay.height;
+            
+            // Limpiar overlay
+            ctx.clearRect(0, 0, width, height);
+            
+            // Dibujar línea roja
+            const xPos = ((r - 2.5) / (4.0 - 2.5)) * width;
+            
+            ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            ctx.moveTo(xPos, 0);
+            ctx.lineTo(xPos, height);
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+            
+            // Dibujar marcador
+            ctx.fillStyle = 'rgba(255, 0, 0, 1)';
+            ctx.beginPath();
+            ctx.arc(xPos, height, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Determinar el comportamiento del sistema
+        function determineBehavior() {
+            if (r < 1) return "Extinción (converge a 0)";
+            if (r < 3) return "Punto fijo estable";
+            if (r < 3.44949) return "Órbita de período 2";
+            if (r < 3.54409) return "Órbita de período 4";
+            if (r < 3.56441) return "Órbita de período 8";
+            if (r < 3.56875) return "Órbita de período 16";
+            if (r < 3.56969) return "Órbita de período 32";
+            if (r < 3.56995) return "Acercándose al caos (período ∞)";
+            if (r >= 3.56995 && r < 3.7) return "Régimen caótico (inestable)";
+            if (r >= 3.7 && r < 3.83) return "Ventana periódica (período 3)";
+            if (r >= 3.83 && r < 3.9) return "Régimen caótico (después de período 3)";
+            if (r >= 3.9) return "Caos desarrollado";
+            return "Comportamiento complejo";
+        }
+
+        // Actualizar el diagrama de bifurcación
+        function updateBifurcationDiagram() {
+            bifurcationData = [];
+            const rStart = 2.5;
+            const rEnd = 4.0;
+            const steps = 500;
+            
+            for (let i = 0; i < steps; i++) {
+                const currentR = rStart + (rEnd - rStart) * i / steps;
+                let xVal = 0.5;
+                
+                // Ignorar transitorios
+                for (let j = 0; j < 100; j++) {
+                    xVal = currentR * xVal * (1 - xVal);
+                }
+                
+                // Recoger puntos después de transitorios
+                for (let j = 0; j < 50; j++) {
+                    xVal = currentR * xVal * (1 - xVal);
+                    bifurcationData.push({x: currentR, y: xVal});
+                }
+            }
+            
+            drawBifurcationDiagram();
+            drawRedLine();
+        }
+
+        // Actualizar la curva del diagrama de fases
+        function updatePhaseDiagramCurve() {
+            const data = [];
+            for (let xVal = 0; xVal <= 1.0; xVal += 0.01) {
+                const yVal = r * xVal * (1 - xVal);
+                data.push({x: xVal, y: yVal});
+            }
+            
+            phaseDiagramChart.data.datasets[0].data = data;
+            phaseDiagramChart.update();
+        }
+
+        // Actualizar la órbita en el diagrama de fases
+        function updatePhaseDiagramOrbit() {
+            const orbitPoints = Math.min(20, Math.min(historyIndex, historySize));
+            const data = [];
+            
+            for (let i = 0; i < orbitPoints; i++) {
+                const idx = (historyIndex - i - 1 + historySize) % historySize;
+                data.push({x: xHistory[idx], y: xHistory[(idx + 1) % historySize]});
+            }
+            
+            phaseDiagramChart.data.datasets[2].data = data;
+            phaseDiagramChart.update();
+        }
+
+        // Actualizar la serie temporal
+        function updateTimeSeries() {
+            const pointsToShow = Math.min(maxIterations, Math.min(historyIndex, historySize));
+            const labels = Array.from({length: pointsToShow}, (_, i) => historyIndex - pointsToShow + i);
+            const data = [];
+            
+            for (let i = 0; i < pointsToShow; i++) {
+                const idx = (historyIndex - i - 1 + historySize) % historySize;
+                data.unshift(xHistory[idx]); // Añadir al inicio para mantener el orden
+            }
+            
+            timeSeriesChart.data.labels = labels;
+            timeSeriesChart.data.datasets[0].data = data;
+            timeSeriesChart.update();
+        }
+
+        // Reiniciar la simulación
+        function resetSimulation() {
+            x = 0.5;
+            historyIndex = 0;
+            xHistory = new Array(historySize).fill(x);
+            updateDisplays();
+        }
+
+        // Actualizar las visualizaciones
+        function updateDisplays() {
+            currentR.textContent = r.toFixed(4);
+            currentX.textContent = x.toFixed(6);
+            iterationCount.textContent = historyIndex;
+            behavior.textContent = determineBehavior();
+            
+            updateTimeSeries();
+            updatePhaseDiagramOrbit();
+            drawRedLine(); // Actualizar la línea roja
+        }
+
+        // Bucle de animación
+        function animate() {
+            if (paused) return;
+            
+            // Actualizar según la velocidad de animación
+            for (let i = 0; i < animationSpeed; i++) {
+                x = r * x * (1 - x);
+                xHistory[historyIndex % historySize] = x;
+                historyIndex++;
+            }
+            
+            updateDisplays();
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Event listeners
+        rSlider.addEventListener('input', function() {
+            r = parseFloat(this.value);
+            rValue.textContent = r.toFixed(3);
+            updatePhaseDiagramCurve();
+            drawRedLine(); // Actualizar la línea roja cuando se mueve el slider
+        });
+
+        iterationsSlider.addEventListener('input', function() {
+            maxIterations = parseInt(this.value);
+            iterationsValue.textContent = maxIterations;
+        });
+
+        speedSlider.addEventListener('input', function() {
+            animationSpeed = parseFloat(this.value);
+            speedValue.textContent = animationSpeed.toFixed(1);
+        });
+
+        resetBtn.addEventListener('click', resetSimulation);
+        
+        pauseBtn.addEventListener('click', function() {
+            paused = !paused;
+            this.textContent = paused ? 'Reanudar' : 'Pausar';
+            if (!paused) animate();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space') {
+                paused = !paused;
+                pauseBtn.textContent = paused ? 'Reanudar' : 'Pausar';
+                e.preventDefault();
+                if (!paused) animate();
+            } else if (e.key === 'r' || e.key === 'R') {
+                resetSimulation();
+            }
+        });
+
+        // Redimensionar cuando cambia el tamaño de la ventana
+        window.addEventListener('resize', function() {
+            initBifurcationDiagram();
+            drawBifurcationDiagram();
+            drawRedLine();
+        });
+
+        // Inicializar y comenzar la simulación
+        window.addEventListener('load', function() {
+            initCharts();
+            updateDisplays();
+            animate();
+        });
+    </script>
+</body>
+</html>
